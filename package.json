@@ -1,0 +1,31 @@
+{
+  "name": "ts-lib-mq",
+  "version": "0.9.0",
+  "description": "Client libraray for message queues",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha test/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tetrascience/ts-lib-mq.git"
+  },
+  "keywords": [
+    "message",
+    "queue",
+    "RabbitMQ"
+  ],
+  "author": "TetraScience Engineers",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tetrascience/ts-lib-mq/issues"
+  },
+  "homepage": "https://github.com/tetrascience/ts-lib-mq#readme",
+  "dependencies": {
+    "debug": "^2.6.6"
+  },
+  "devDependencies": {}
+}
