@@ -26,7 +26,8 @@ createConnection();
 class RabbitMQ {
 
     /**
-     * Create a RabbitMQ message queue
+     * Create a RabbitMQ message queue.
+     * All message queue shares the same underlining connection to one single RabbitMQ.
      * @param {String} queueName - the name of the queue
      * @param {Object} options - options object to specify durable, persistent and prefetch
      */
