@@ -4,3 +4,8 @@ queue.sendToQueue({
     key: 'value'
 });
 ```
+
+Manual test
+```bash
+DEBUG=ts-lib-mq:* node test/manual/test.js
+```
