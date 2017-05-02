@@ -12,18 +12,18 @@ const EventEmitter = require('events');
 const deadLetterName = 'deadletter';
 const retryInterval = 2000;
 let retry = 0;
-const eventEmitter = new EventEmitter();
-eventEmitter.setMaxListeners(20); // do NOT expect any process to connect to more than 20 queues
+const eventEmitter = new EventEmitter(); // use this eventEmitter to communicate between the shared connection and rabbitmq instance
+eventEmitter.setMaxListeners(20); // we do NOT expect any process to communicate with more than 20 queues
 
 
 // Create the connection to RabbitMQ
-let connection;
+let connection; // global, shared by all queues/channels
 createConnection();
 
 /**
  * Class representing a message queue
  */
-class RabbitMQ {
+class RabbitMQ extends EventEmitter{
 
     /**
      * Create a RabbitMQ message queue.
@@ -32,6 +32,7 @@ class RabbitMQ {
      * @param {Object} options - options object to specify durable, persistent and prefetch
      */
     constructor(queueName, options) {
+        super();
 
         assert(_.isString(queueName), `must pass a string as queueName name`);
         this.queueName = queueName;
@@ -52,7 +53,7 @@ class RabbitMQ {
         this.durable = options.durable || true;
         this.persistent = options.persistent || true;
 
-        this.connection = connection;
+
         this.channel = this._createChannel();
 
         // save all the message callbacks in case:
@@ -73,7 +74,6 @@ class RabbitMQ {
         // this limit is increased to 20 (hardcoded in the beginning of this file)
         // there shouldn't be more than 20 instances of RabbitMQ in one process
         eventEmitter.on('reconnection', () => {
-            console.log(this);
             // now that the connection is back, let's reinitialize the channel and queue
             this.channel = this._createChannel();
             this._declareQueue();
@@ -83,6 +83,14 @@ class RabbitMQ {
             this.callbacks.forEach((cb) => {
                 this.setMessageCallback(cb);
             })
+        });
+
+        eventEmitter.on('error', (err) => {
+            this.emit('error', err);
+        });
+
+        eventEmitter.on('close', () => {
+            this.emit('close');
         });
     };
 
@@ -210,7 +218,8 @@ class RabbitMQ {
 
 function createConnection() {
 
-    // over write the connection object everytime we want to reestablish the connection
+    // over write the connection object everytime we want to establish the connection
+    // this will happen during reconnection
     connection = amqp.connect(config.amqpEndpoint);
 
     connection
@@ -228,10 +237,12 @@ function createConnection() {
             // attach proper event listeners for error handling
             conn.on('error', function (err) {
                 debug(`RabbitMQ connection has an error: ${err.message}`);
+                eventEmitter.emit('error', err);
             });
 
             conn.on('close', function () {
                 debug('RabbitMQ connection closed and reconnecting now');
+                eventEmitter.emit('close');
                 createConnection();
             });
 

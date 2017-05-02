@@ -1,3 +1,3 @@
 "use strict";
 
-module.exports.rabbitmq = require('./RabbitMQ.js');
+module.exports.RabbitMQ = require('./RabbitMQ.js');
