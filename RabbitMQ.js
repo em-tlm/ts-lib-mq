@@ -85,12 +85,21 @@ class RabbitMQ extends EventEmitter{
             })
         });
 
+        // listen on the events and then emit them out for applications to deal with the events
         eventEmitter.on('error', (err) => {
             this.emit('error', err);
         });
 
         eventEmitter.on('close', () => {
             this.emit('close');
+        });
+
+        eventEmitter.on('blocked', (reason) => {
+            this.emit('blocked', reason);
+        });
+
+        eventEmitter.on('unblocked', () => {
+            this.emit('unblocked');
         });
     };
 
@@ -180,10 +189,10 @@ class RabbitMQ extends EventEmitter{
         });
     };
 
-    reject(message) {
+    reject(message, requeue) {
         const channel = this.channel;
         channel.then(function (channel) {
-            channel.reject(message, false);
+            channel.reject(message, requeue || false);
         });
     };
 
@@ -235,15 +244,25 @@ function createConnection() {
             retry = 0;
 
             // attach proper event listeners for error handling
-            conn.on('error', function (err) {
+            conn.on('error', (err) => {
                 debug(`RabbitMQ connection has an error: ${err.message}`);
                 eventEmitter.emit('error', err);
             });
 
-            conn.on('close', function () {
+            conn.on('close', () => {
                 debug('RabbitMQ connection closed and reconnecting now');
                 eventEmitter.emit('close');
                 createConnection();
+            });
+
+            conn.on('blocked', (reason) => {
+                debug(`RabbitMQ connection is blocked due to ${reason}`);
+                eventEmitter.emit('blocked', reason);
+            });
+
+            conn.on('unblocked', () => {
+                debug(`RabbitMQ connection is unblocked`);
+                eventEmitter.emit('unblocked');
             });
 
         })
