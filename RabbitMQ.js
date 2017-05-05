@@ -50,8 +50,16 @@ class RabbitMQ extends EventEmitter{
             `persistent, if passed in, must be a boolean`);
 
         this.prefetch = options.prefetch || 20;
-        this.durable = options.durable || true;
-        this.persistent = options.persistent || true;
+
+        if (_.isUndefined(options.durable)){
+            options.durable = true;
+        }
+        this.durable = options.durable;
+
+        if (_.isUndefined(options.persistent)){
+            options.persistent = true;
+        }
+        this.persistent = options.persistent;
 
 
         this.channel = this._createChannel();
@@ -64,7 +72,7 @@ class RabbitMQ extends EventEmitter{
                 debug(`Failed to declare queue. Error: ${e.message}`);
             });
         this._declareDeadQueue()
-            .catch(function (e) {
+            .catch((e) => {
                 debug(`Failed to declare dead queue. Error: ${e.message}`);
             });
 
@@ -104,7 +112,7 @@ class RabbitMQ extends EventEmitter{
     };
 
     _createChannel() {
-        return connection.then(function (connection) {
+        return connection.then((connection) => {
             return connection.createConfirmChannel();
         });
     };
@@ -126,14 +134,14 @@ class RabbitMQ extends EventEmitter{
         const routingKey = this.queueName;
         const deadQueue = this.queueName + '.dead';
         const durable = this.durable;
-        return channel.then(function (channel) {
+        return channel.then( (channel) => {
             return channel.assertExchange(deadLetterName, 'direct', {
                 durable: true
-            }).then(function () {
+            }).then( () => {
                 return channel.assertQueue(deadQueue, {
                     durable: durable
                 });
-            }).then(function () {
+            }).then( () => {
                 return channel.bindQueue(deadQueue, deadLetterName, routingKey);
             });
         });
@@ -143,7 +151,7 @@ class RabbitMQ extends EventEmitter{
         const queueName = this.queueName;
         const channel = this.channel;
         const persistent = this.persistent;
-        return channel.then(function (channel) {
+        return channel.then( (channel) =>{
             channel.sendToQueue(queueName, new Buffer(data), {persistent: persistent});
             return channel.waitForConfirms();
         })
@@ -153,8 +161,8 @@ class RabbitMQ extends EventEmitter{
         const queueName = this.queueName;
         const channel = this.channel;
         const persistent = this.persistent;
-        return channel.then(function (channel) {
-            batchData.forEach(function (data) {
+        return channel.then( (channel) => {
+            batchData.forEach( (data) => {
                 channel.sendToQueue(queueName, new Buffer(data), {persistent: persistent});
             });
             return channel.waitForConfirms();
@@ -184,14 +192,14 @@ class RabbitMQ extends EventEmitter{
 
     ack(message) {
         const channel = this.channel;
-        channel.then(function (channel) {
+        channel.then( (channel) => {
             channel.ack(message);
         });
     };
 
     reject(message, requeue) {
         const channel = this.channel;
-        channel.then(function (channel) {
+        channel.then( (channel) => {
             channel.reject(message, requeue || false);
         });
     };
@@ -201,22 +209,11 @@ class RabbitMQ extends EventEmitter{
         return this._declareQueue();
     };
 
-    getLastMessage() {
-        const queueName = this.queueName;
-        const channel = this.channel;
-        const msg = channel.then(function (channel) {
-            return channel.get(queueName);
-        });
-        return Promise.all([channel, msg]).spread(function (channel, msg) {
-            channel.nackAll();
-            return msg;
-        });
-    };
 
     purge() {
         const queueName = this.queueName;
         const channel = this.channel;
-        return channel.then(function (channel) {
+        return channel.then( (channel) => {
             return channel.purgeQueue(queueName);
         });
     };
@@ -232,7 +229,7 @@ function createConnection() {
     connection = amqp.connect(config.amqpEndpoint);
 
     connection
-        .then(function (conn) {
+        .then( (conn) => {
             // this is a reconnection
             if (retry > 0) {
                 eventEmitter.emit('reconnection');
@@ -266,10 +263,10 @@ function createConnection() {
             });
 
         })
-        .catch(function (err) {
+        .catch( (err) => {
             Promise
                 .delay(retryInterval)
-                .then(function () {
+                .then(() => {
                     createConnection(); // try to reconnect again if it fails
                     retry++;
                     debug(`Retry RabbitMQ connection: ${retry} attempts. Error: ${err.message}`);
