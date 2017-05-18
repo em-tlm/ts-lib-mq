@@ -25,7 +25,10 @@
   },
   "homepage": "https://github.com/tetrascience/ts-lib-mq#readme",
   "dependencies": {
-    "debug": "^2.6.6"
+    "amqplib": "^0.5.1",
+    "bluebird": "^3.5.0",
+    "debug": "^2.6.6",
+    "lodash": "^4.17.4"
   },
   "devDependencies": {}
 }
