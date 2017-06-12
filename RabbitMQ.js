@@ -148,6 +148,8 @@ class RabbitMQ extends EventEmitter {
     //if you call this method multiple times, then all the callbacks will be called
     setMessageCallback(callback) {
 
+        this.callbacks.push(callback);
+
         this.channel
             .then(channel => {
                 channel.prefetch(this.prefetch);
