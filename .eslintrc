@@ -1,0 +1,9 @@
+{
+    "extends": "tetrascience",
+    "rules": {
+        "indent": ["error", 4],
+        "quotes": ["error", "single", { "allowTemplateLiterals": true }],
+        "no-underscore-dangle": ["error", { "allowAfterThis": true }],
+        "no-process-env": 1
+    }
+}
