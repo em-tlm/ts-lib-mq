@@ -70,7 +70,7 @@ class RabbitMQ extends EventEmitter {
         // by default, a maximum of 10 listeners can be registered due to NodeJs internal
         // implementation. this limit is increased to 20 (hardcoded in the beginning of this file)
         // there shouldn't be more than 20 instances of RabbitMQ in one process
-        eventEmitter.on('reconnection', this.connect);
+        eventEmitter.on('reconnection', () => this.connect());
 
         // listen on the events and then emit them out for applications to deal with the events
         eventEmitter.on('error', err => this.emit('error', err));
@@ -154,7 +154,7 @@ class RabbitMQ extends EventEmitter {
             .catch(e => debug(`Failed to declare dead queue. Error: ${e.message}`));
 
         // attach all the msg callbacks
-        this.callbacks.forEach(this.setMessageCallback);
+        this.callbacks.forEach(cb => this.setMessageCallback(cb));
     }
 
     // disconnect from channel, use to pause consumption

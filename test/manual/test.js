@@ -1,4 +1,6 @@
-const RabbitMQ = require('../../RabbitMQ.js');
+'use strict';
+
+const RabbitMQ = require('../../').RabbitMQ;
 const debug = require('debug')('ts-lib-mq:test');
 
 const queue = new RabbitMQ('testqueue1');
