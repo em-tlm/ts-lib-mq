@@ -23,7 +23,7 @@ createConnection();
 /**
  * Class representing a message queue
  */
-class RabbitMQ extends EventEmitter{
+class RabbitMQ extends EventEmitter {
 
     /**
      * Create a RabbitMQ message queue.
@@ -61,40 +61,20 @@ class RabbitMQ extends EventEmitter{
         }
         this.persistent = options.persistent;
 
-
-        this.channel = this._createChannel();
-
         // save all the message callbacks in case:
         // we need to reestablish the connection and reapply all the message callbacks
         this.callbacks = [];
-        this._declareQueue()
-            .catch((e) => {
-                debug(`Failed to declare queue. Error: ${e.message}`);
-            });
-        this._declareDeadQueue()
-            .catch((e) => {
-                debug(`Failed to declare dead queue. Error: ${e.message}`);
-            });
 
+        this._connect();
 
         // attach an function to the reconnection event for every instance of message queue.
         // by default, a maximum of 10 listeners can be registered due to NodeJs internal implementation
         // this limit is increased to 20 (hardcoded in the beginning of this file)
         // there shouldn't be more than 20 instances of RabbitMQ in one process
-        eventEmitter.on('reconnection', () => {
-            // now that the connection is back, let's reinitialize the channel and queue
-            this.channel = this._createChannel();
-            this._declareQueue();
-            this._declareDeadQueue();
-
-            // reattach all the msg callbacks
-            this.callbacks.forEach((cb) => {
-                this.setMessageCallback(cb);
-            })
-        });
+        eventEmitter.on('reconnection', this._connect);
 
         // listen on the events and then emit them out for applications to deal with the events
-        eventEmitter.on('error', (err) => {
+        eventEmitter.on('error', err => {
             this.emit('error', err);
         });
 
@@ -102,7 +82,7 @@ class RabbitMQ extends EventEmitter{
             this.emit('close');
         });
 
-        eventEmitter.on('blocked', (reason) => {
+        eventEmitter.on('blocked', reason => {
             this.emit('blocked', reason);
         });
 
@@ -112,58 +92,53 @@ class RabbitMQ extends EventEmitter{
     };
 
     _createChannel() {
-        return connection.then((connection) => {
-            return connection.createConfirmChannel();
-        });
+        return connection.then(connection => connection.createConfirmChannel());
     };
 
     _declareQueue() {
-        const queueName = this.queueName;
-        const channel = this.channel;
-        return channel.then((channel) => {
-            return channel.assertQueue(queueName, {
-                durable: this.durable,
-                deadLetterExchange: deadLetterName
-            });
-        });
+        return this.channel.then(channel => channel.assertQueue(this.queueName, {
+            durable: this.durable,
+            deadLetterExchange: deadLetterName
+        }));
     };
 
 
     _declareDeadQueue() {
-        const channel = this.channel;
-        const routingKey = this.queueName;
+
         const deadQueue = this.queueName + '.dead';
-        const durable = this.durable;
-        return channel.then( (channel) => {
-            return channel.assertExchange(deadLetterName, 'direct', {
-                durable: true
-            }).then( () => {
-                return channel.assertQueue(deadQueue, {
-                    durable: durable
-                });
-            }).then( () => {
-                return channel.bindQueue(deadQueue, deadLetterName, routingKey);
-            });
+
+        return this.channel.then(channel => {
+            return channel.assertExchange(deadLetterName, 'direct', { durable: true })
+                .then(() => channel.assertQueue(deadQueue, { durable: this.durable }))
+                .then(() => channel.bindQueue(deadQueue, deadLetterName, this.queueName));
         });
     };
 
+    // initialize channel and queues, add callbacks
+    _connect() {
+
+        this.channel = this._createChannel();
+
+        this._declareQueue()
+            .catch(e => debug(`Failed to declare queue. Error: ${e.message}`));
+        this._declareDeadQueue()
+            .catch(e => debug(`Failed to declare dead queue. Error: ${e.message}`));
+
+        // attach all the msg callbacks
+        this.callbacks.forEach(this.setMessageCallback);
+    };
+
     sendToQueue(data) {
-        const queueName = this.queueName;
-        const channel = this.channel;
-        const persistent = this.persistent;
-        return channel.then( (channel) =>{
-            channel.sendToQueue(queueName, new Buffer(data), {persistent: persistent});
+        return this.channel.then(channel => {
+            channel.sendToQueue(this.queueName, new Buffer(data), { persistent: this.persistent });
             return channel.waitForConfirms();
-        })
+        });
     };
 
     batchSendToQueue(batchData) {
-        const queueName = this.queueName;
-        const channel = this.channel;
-        const persistent = this.persistent;
-        return channel.then( (channel) => {
-            batchData.forEach( (data) => {
-                channel.sendToQueue(queueName, new Buffer(data), {persistent: persistent});
+        return this.channel.then(channel => {
+            batchData.forEach(data => {
+                channel.sendToQueue(this.queueName, new Buffer(data), { persistent: this.persistent });
             });
             return channel.waitForConfirms();
         });
@@ -172,36 +147,22 @@ class RabbitMQ extends EventEmitter{
 
     //if you call this method multiple times, then all the callbacks will be called
     setMessageCallback(callback) {
-        const self = this;
-        const queueName = this.queueName;
-        const channel = this.channel;
 
-        // save the callback first
-        self.callbacks.push(callback);
-
-        channel
-            .then((channel) => {
+        this.channel
+            .then(channel => {
                 channel.prefetch(this.prefetch);
-                channel.consume(queueName, callback);
+                return channel.consume(this.queueName, callback);
             })
-            .catch((err) => {
-                debug(`Failed to set message callback on queueName ${this.queueName}. Error: ${err.message}`);
-            });
-
+            .then(response => this.callbacks[response.consumerTag] = callback)
+            .catch(err => debug(`Failed to set message callback on queueName ${this.queueName}. Error: ${err.message}`));
     };
 
     ack(message) {
-        const channel = this.channel;
-        channel.then( (channel) => {
-            channel.ack(message);
-        });
+        this.channel.then(channel => channel.ack(message));
     };
 
     reject(message, requeue) {
-        const channel = this.channel;
-        channel.then( (channel) => {
-            channel.reject(message, requeue || false);
-        });
+        this.channel.then(channel => channel.reject(message, requeue || false));
     };
 
 
@@ -209,16 +170,19 @@ class RabbitMQ extends EventEmitter{
         return this._declareQueue();
     };
 
-
     purge() {
-        const queueName = this.queueName;
-        const channel = this.channel;
-        return channel.then( (channel) => {
-            return channel.purgeQueue(queueName);
-        });
+        return this.channel.then(channel => channel.purgeQueue(queueName));
     };
 
+    // disconnect from channel, use to pause consumption
+    disconnect() {
+        return this.channel.then(channel => channel.close());
+    };
 
+    // reconnect to channel, will reset connection
+    reconnect() {
+        return this.disconnect().then(_connect);
+    };
 }
 
 
@@ -229,19 +193,21 @@ function createConnection() {
     connection = amqp.connect(config.amqpEndpoint);
 
     connection
-        .then( (conn) => {
+        .then(conn => {
             // this is a reconnection
             if (retry > 0) {
                 eventEmitter.emit('reconnection');
             }
 
-            debug(retry ? `Connected to Rabbitmq successful after ${retry} retry` : `connected to Rabbitmq successful the first time!`);
+            debug(retry
+                ? `Connected to Rabbitmq successfully after ${retry} retry`
+                : `Connected to Rabbitmq successfully the first time!`);
 
             // reset the retry counter
             retry = 0;
 
             // attach proper event listeners for error handling
-            conn.on('error', (err) => {
+            conn.on('error', err => {
                 debug(`RabbitMQ connection has an error: ${err.message}`);
                 eventEmitter.emit('error', err);
             });
@@ -252,7 +218,7 @@ function createConnection() {
                 createConnection();
             });
 
-            conn.on('blocked', (reason) => {
+            conn.on('blocked', reason => {
                 debug(`RabbitMQ connection is blocked due to ${reason}`);
                 eventEmitter.emit('blocked', reason);
             });
@@ -263,15 +229,14 @@ function createConnection() {
             });
 
         })
-        .catch( (err) => {
-            Promise
-                .delay(retryInterval)
-                .then(() => {
-                    createConnection(); // try to reconnect again if it fails
-                    retry++;
-                    debug(`Retry RabbitMQ connection: ${retry} attempts. Error: ${err.message}`);
-                })
-        });
+        .catch(err => Promise
+            .delay(retryInterval)
+            .then(() => {
+                createConnection(); // try to reconnect again if it fails
+                retry++;
+                debug(`Retry RabbitMQ connection: ${retry} attempts. Error: ${err.message}`);
+            })
+        );
 }
 
 module.exports = RabbitMQ;
