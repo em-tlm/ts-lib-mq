@@ -117,14 +117,12 @@ class RabbitMQ extends EventEmitter {
     setMessageCallback(callback) {
         this.callbacks.push(callback);
 
-        this.channel
+        return this.channel
             .then((channel) => {
                 channel.prefetch(this.prefetch);
                 return channel.consume(this.queueName, callback);
             })
-            .then((response) => {
-                this.callbacks[response.consumerTag] = callback;
-            })
+            .then(response => response.consumerTag)
             .catch(err => debug(`Failed to set message callback on queueName ${this.queueName}. Error: ${err.message}`));
     }
 
