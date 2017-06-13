@@ -162,7 +162,7 @@ class RabbitMQ extends EventEmitter {
 
     // reconnect to channel, will reset connection
     reconnect() {
-        return this.disconnect().then(this.connect);
+        return this.disconnect().then(() => this.connect());
     }
 }
 
