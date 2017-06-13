@@ -1,0 +1,13 @@
+{
+    "extends": "tetrascience",
+    "parserOptions": {
+    	"sourceType": "script",
+    },
+    "rules": {
+        "indent": ["error", 4],
+        "quotes": ["error", "single", { "allowTemplateLiterals": true }],
+        "no-underscore-dangle": ["error", { "allowAfterThis": true }],
+        "no-process-env": 1,
+        "strict": 0
+    }
+}
