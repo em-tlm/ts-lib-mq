@@ -49,6 +49,11 @@ class RabbitMQ extends EventEmitter {
 
         this.prefetch = options.prefetch || 20;
 
+        if (_.isUndefined(options.confirm)) {
+            options.confirm = true;
+        }
+        this.confirm = options.confirm;
+
         if (_.isUndefined(options.durable)) {
             options.durable = true;
         }
@@ -101,7 +106,7 @@ class RabbitMQ extends EventEmitter {
     sendToQueue(data) {
         return this.channel.then((channel) => {
             channel.sendToQueue(this.queueName, new Buffer(data), { persistent: this.persistent });
-            return channel.waitForConfirms();
+            return this.confirm ? channel.waitForConfirms() : Promise.resolve();
         });
     }
 
@@ -109,7 +114,7 @@ class RabbitMQ extends EventEmitter {
         return this.channel.then((channel) => {
             batchData.forEach(data => channel
                 .sendToQueue(this.queueName, new Buffer(data), { persistent: this.persistent }));
-            return channel.waitForConfirms();
+            return this.confirm ? channel.waitForConfirms() : Promise.resolve();
         });
     }
 
@@ -144,7 +149,7 @@ class RabbitMQ extends EventEmitter {
 
     // initialize channel and queues, add callbacks
     connect() {
-        this.channel = connection.then(conn => conn.createConfirmChannel());
+        this.channel = connection.then(conn => this.confirm ? conn.createConfirmChannel() : conn.createChannel());
 
         this._declareQueue()
             .catch(e => debug(`Failed to declare queue. Error: ${e.message}`));
