@@ -1,3 +1,5 @@
+'use strict';
+
 const Promise = require('bluebird');
 const amqp = require('amqplib');
 const _ = require('lodash');
