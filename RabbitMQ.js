@@ -153,6 +153,9 @@ class RabbitMQ extends EventEmitter {
 
     // initialize channel and queues, add callbacks
     connect() {
+        if (this.channel && this.channel.close) {
+            this.channel.close();
+        }
 
         this.channel = connection.then(conn => this.confirm ? conn.createConfirmChannel() : conn.createChannel());
 
@@ -184,17 +187,10 @@ function createConnection() {
 
     connection
         .then((conn) => {
-            // this is a reconnection
-            if (retry > 0) {
-                eventEmitter.emit('reconnection');
-            }
 
             debug(retry
                 ? `Connected to Rabbitmq successfully after ${retry} retry`
                 : `Connected to Rabbitmq successfully the first time!`);
-
-            // reset the retry counter
-            retry = 0;
 
             // attach proper event listeners for error handling
             conn.on('error', (err) => {
@@ -217,6 +213,11 @@ function createConnection() {
                 debug(`RabbitMQ connection is unblocked`);
                 eventEmitter.emit('unblocked');
             });
+
+            eventEmitter.emit('reconnection');
+            // reset the retry counter
+            retry = 0;
+
         })
         .catch((err) => {
             debug(`Retry RabbitMQ connection: ${++retry} attempts. Error: ${err.message}`);
